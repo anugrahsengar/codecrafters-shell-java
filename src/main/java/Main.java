@@ -12,6 +12,7 @@ public class Main {
         Scanner scanner = new Scanner(System.in);
         List<String> commandList = Arrays.asList("echo", "exit", "type", "pwd", "cd"); // List of possible commands
 
+
         while (true) {
             System.out.print("$ ");
             String input = scanner.nextLine().trim();
@@ -19,6 +20,10 @@ public class Main {
             if (input.isEmpty()) {
                 System.out.println("Please enter a non-empty command.");
                 continue;
+            }
+
+            if (input.equals("exit")) {
+                break;
             }
 
             // Splitting command and arguments

@@ -37,7 +37,7 @@ public class Main {
             // Check for type of command
             switch (command) {
                 case "echo":
-                    System.out.println(arguments);
+                    System.out.println(parseQuotedString(arguments));
                     break;
                 case "type":
                     type(commandList, arguments);
@@ -87,6 +87,25 @@ public class Main {
                     executeExternalCommand(input); // Execute external programs with their own command and argument
             }
         }
+    }
+
+    public static String parseQuotedString(String input) {
+        if (input == null || input.isEmpty()) {
+            return input;
+        }
+
+        // Handle single-quoted strings
+        if (input.startsWith("'") && input.endsWith("'") && input.length() >= 2) {
+            return input.substring(1, input.length() - 1);
+        }
+
+        // Handle double-quoted strings
+        if (input.startsWith("\"") && input.endsWith("\"") && input.length() >= 2) {
+            return input.substring(1, input.length() - 1);
+        }
+
+        // Return as-is if not quoted
+        return input;
     }
 
     public static void type(List<String> commandList, String arguments) {

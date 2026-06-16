@@ -12,7 +12,6 @@ public class Main {
         Scanner scanner = new Scanner(System.in);
         List<String> commandList = Arrays.asList("echo", "exit", "type", "pwd", "cd"); // List of possible commands
 
-
         while (true) {
             System.out.print("$ ");
             String input = scanner.nextLine().trim();
@@ -65,6 +64,9 @@ public class Main {
             System.out.println(arguments + " is a shell builtin");
         } else {
             String pathDir = System.getenv("PATH");
+            if (pathDir == null) {
+                pathDir = "";
+            }
             String[] dirs = pathDir.split(":");
             boolean found = false;
 
@@ -72,7 +74,13 @@ public class Main {
                 File file = new File(dir, arguments);
 
                 if (file.exists()) {
-                    System.out.println(arguments + " is " + file.getAbsolutePath());
+                    try {
+                        // Print the canonical path to resolve symlinks (e.g., /tmp/owl/my_exe ->
+                        // /tmp/bee/my_exe)
+                        System.out.println(arguments + " is " + file.getCanonicalPath());
+                    } catch (IOException e) {
+                        System.out.println(arguments + " is " + file.getAbsolutePath());
+                    }
                     found = true;
                     break;
                 }
@@ -92,8 +100,8 @@ public class Main {
             processBuilder.redirectErrorStream(true);
             Process process = processBuilder.start();
 
-            BufferedReader bufferedReader = new BufferedReader
-                    (new InputStreamReader(process.getInputStream())); // Process output
+            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream())); // Process
+                                                                                                                 // output
 
             String line;
             while ((line = bufferedReader.readLine()) != null) {

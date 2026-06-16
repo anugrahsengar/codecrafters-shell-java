@@ -49,7 +49,12 @@ public class Main {
                     // Resolve paths relative to the shell's current directory tracked in user.dir
                     String currentDir = System.getProperty("user.dir");
                     String target = arguments == null ? "" : arguments;
-                    String home = System.getProperty("user.home");
+                    // Check HOME environment variable first (for shell compatibility), fall back to
+                    // user.home
+                    String home = System.getenv("HOME");
+                    if (home == null) {
+                        home = System.getProperty("user.home");
+                    }
 
                     // Support `cd` with no args -> go to home, and ~ expansion
                     if (target.isEmpty() || "~".equals(target)) {

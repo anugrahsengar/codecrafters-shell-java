@@ -52,10 +52,20 @@ public class Main {
                     if (!file.isAbsolute()) {
                         file = new File(currentDir, arguments);
                     }
-                    if (file.exists() && file.isDirectory()) {
-                        System.setProperty("user.dir", file.getAbsolutePath());
-                    } else {
-                        System.out.println("cd: " + arguments + ": No such file or directory");
+                    try {
+                        String canonical = file.getCanonicalPath();
+                        File canonicalFile = new File(canonical);
+                        if (canonicalFile.exists() && canonicalFile.isDirectory()) {
+                            System.setProperty("user.dir", canonical);
+                        } else {
+                            System.out.println("cd: " + arguments + ": No such file or directory");
+                        }
+                    } catch (IOException e) {
+                        if (file.exists() && file.isDirectory()) {
+                            System.setProperty("user.dir", file.getAbsolutePath());
+                        } else {
+                            System.out.println("cd: " + arguments + ": No such file or directory");
+                        }
                     }
                     break;
                 default:

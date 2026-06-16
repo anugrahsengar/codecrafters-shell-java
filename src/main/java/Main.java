@@ -48,9 +48,19 @@ public class Main {
                 case "cd":
                     // Resolve paths relative to the shell's current directory tracked in user.dir
                     String currentDir = System.getProperty("user.dir");
-                    File file = new File(arguments);
+                    String target = arguments == null ? "" : arguments;
+                    String home = System.getProperty("user.home");
+
+                    // Support `cd` with no args -> go to home, and ~ expansion
+                    if (target.isEmpty() || "~".equals(target)) {
+                        target = home;
+                    } else if (target.startsWith("~/")) {
+                        target = home + target.substring(1);
+                    }
+
+                    File file = new File(target);
                     if (!file.isAbsolute()) {
-                        file = new File(currentDir, arguments);
+                        file = new File(currentDir, target);
                     }
                     try {
                         String canonical = file.getCanonicalPath();

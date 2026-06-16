@@ -73,14 +73,9 @@ public class Main {
             for (String dir : dirs) {
                 File file = new File(dir, arguments);
 
-                if (file.exists()) {
-                    try {
-                        // Print the canonical path to resolve symlinks (e.g., /tmp/owl/my_exe ->
-                        // /tmp/bee/my_exe)
-                        System.out.println(arguments + " is " + file.getCanonicalPath());
-                    } catch (IOException e) {
-                        System.out.println(arguments + " is " + file.getAbsolutePath());
-                    }
+                // Only consider files that exist and are executable
+                if (file.exists() && file.canExecute()) {
+                    System.out.println(arguments + " is " + file.getAbsolutePath());
                     found = true;
                     break;
                 }

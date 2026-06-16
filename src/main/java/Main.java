@@ -46,7 +46,12 @@ public class Main {
                     System.out.println(System.getProperty("user.dir"));
                     break;
                 case "cd":
+                    // Resolve paths relative to the shell's current directory tracked in user.dir
+                    String currentDir = System.getProperty("user.dir");
                     File file = new File(arguments);
+                    if (!file.isAbsolute()) {
+                        file = new File(currentDir, arguments);
+                    }
                     if (file.exists() && file.isDirectory()) {
                         System.setProperty("user.dir", file.getAbsolutePath());
                     } else {

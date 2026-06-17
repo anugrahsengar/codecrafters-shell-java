@@ -198,7 +198,23 @@ public class Main {
     }
 
     public static void executeExternalCommand(String input) {
-        List<String> args = parseCommandLine(input);
+        // Parse command and check for redirection
+        List<String> parts = parseCommandLineWithRedirection(input);
+        if (parts.isEmpty()) {
+            return;
+        }
+
+        String outputFile = null;
+        List<String> args = new java.util.ArrayList<>(parts);
+
+        // Check for output redirection
+        int redirectIndex = args.indexOf(">");
+        if (redirectIndex != -1 && redirectIndex + 1 < args.size()) {
+            outputFile = args.get(redirectIndex + 1);
+            // Remove redirection operator and file from args
+            args.subList(redirectIndex, args.size()).clear();
+        }
+
         if (args.isEmpty()) {
             return;
         }
@@ -206,20 +222,32 @@ public class Main {
         try {
             ProcessBuilder processBuilder = new ProcessBuilder(args);
             processBuilder.redirectErrorStream(true);
+
+            if (outputFile != null) {
+                // Redirect stdout to file
+                processBuilder.redirectOutput(new File(outputFile));
+            }
+
             Process process = processBuilder.start();
 
-            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-
-            String line;
-            while ((line = bufferedReader.readLine()) != null) {
-                System.out.println(line);
+            if (outputFile == null) {
+                // Only read output if not redirected to file
+                BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                String line;
+                while ((line = bufferedReader.readLine()) != null) {
+                    System.out.println(line);
+                }
             }
+
+            process.waitFor();
         } catch (IOException e) {
-            System.out.println(input + ": command not found");
+            System.out.println(input.split(" ")[0] + ": command not found");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
-    public static List<String> parseCommandLine(String input) {
+    public static List<String> parseCommandLineWithRedirection(String input) {
         List<String> args = new java.util.ArrayList<>();
         StringBuilder currentArg = new StringBuilder();
         int i = 0;
@@ -240,6 +268,18 @@ public class Main {
             } else if (c == '"' && !inSingleQuote) {
                 inDoubleQuote = !inDoubleQuote;
                 i++;
+            } else if (c == '>' && !inSingleQuote && !inDoubleQuote) {
+                // Redirection operator
+                if (currentArg.length() > 0) {
+                    args.add(currentArg.toString());
+                    currentArg = new StringBuilder();
+                }
+                args.add(">");
+                i++;
+                // Skip whitespace after >
+                while (i < input.length() && Character.isWhitespace(input.charAt(i))) {
+                    i++;
+                }
             } else if (Character.isWhitespace(c) && !inSingleQuote && !inDoubleQuote) {
                 // End of argument
                 if (currentArg.length() > 0) {

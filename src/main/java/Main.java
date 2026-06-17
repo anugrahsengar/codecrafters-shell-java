@@ -7,14 +7,27 @@ import java.util.List;
 import java.util.Scanner;
 
 public class Main {
+    private static final List<String> BUILTINS = Arrays.asList("echo", "exit", "type", "pwd", "cd", "jobs");
+
     public static void main(String[] args) throws Exception {
+        if (args.length > 0 && args[0].equals("--execute-builtin")) {
+            List<String> builtinArgs = new java.util.ArrayList<>();
+            for (int i = 1; i < args.length; i++) {
+                builtinArgs.add(args[i]);
+            }
+            CommandParseResult parseResult = new CommandParseResult();
+            parseResult.args = builtinArgs;
+            executeCommand(parseResult, BUILTINS, String.join(" ", builtinArgs));
+            System.exit(0);
+        }
+
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             disableRawMode();
         }));
 
         enableRawMode();
 
-        List<String> commandList = Arrays.asList("echo", "exit", "type", "pwd", "cd", "jobs"); // List of possible commands
+        List<String> commandList = BUILTINS; // List of possible commands
 
         while (true) {
             reapDoneJobs();
@@ -518,6 +531,37 @@ public class Main {
         return false;
     }
 
+    public static List<String> getBuiltinProcessArgs(List<String> subArgs) {
+        List<String> args = new java.util.ArrayList<>();
+        String javaHome = System.getProperty("java.home");
+        String javaBin = javaHome + File.separator + "bin" + File.separator + "java";
+        args.add(javaBin);
+
+        try {
+            for (String arg : java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments()) {
+                if (arg.contains("preview") || arg.contains("native-access")) {
+                    args.add(arg);
+                }
+            }
+        } catch (Throwable t) {
+            // Ignore if ManagementFactory is not available or throws exception
+        }
+
+        String classpath = System.getProperty("java.class.path");
+        if (classpath != null && classpath.endsWith(".jar")) {
+            args.add("-jar");
+            args.add(classpath);
+        } else {
+            args.add("-cp");
+            args.add(classpath != null ? classpath : ".");
+            args.add("Main");
+        }
+
+        args.add("--execute-builtin");
+        args.addAll(subArgs);
+        return args;
+    }
+
     public static void executePipeline(CommandParseResult parseResult, String input) {
         try {
             List<ProcessBuilder> builders = new java.util.ArrayList<>();
@@ -527,11 +571,18 @@ public class Main {
                     continue;
                 }
                 String cmd = sub.args.get(0);
-                if (!commandExists(cmd)) {
+                boolean isBuiltin = BUILTINS.contains(cmd);
+                if (!isBuiltin && !commandExists(cmd)) {
                     System.out.println(cmd + ": command not found");
                     return;
                 }
-                ProcessBuilder pb = new ProcessBuilder(sub.args);
+                
+                ProcessBuilder pb;
+                if (isBuiltin) {
+                    pb = new ProcessBuilder(getBuiltinProcessArgs(sub.args));
+                } else {
+                    pb = new ProcessBuilder(sub.args);
+                }
 
                 // Configure stderr redirection
                 if (sub.stderrFile != null) {

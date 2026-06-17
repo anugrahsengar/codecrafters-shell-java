@@ -55,6 +55,7 @@ public class Main {
         public boolean stdoutAppend = false;
         public String stderrFile = null;
         public boolean stderrAppend = false;
+        public boolean isBackground = false;
     }
 
     public static CommandParseResult parseCommandLine(String input) {
@@ -97,6 +98,16 @@ public class Main {
             } else if (c == '"' && !inSingleQuote) {
                 inDoubleQuote = !inDoubleQuote;
                 i++;
+            } else if (c == '&' && !inSingleQuote && !inDoubleQuote) {
+                if (currentToken.length() > 0) {
+                    tokens.add(new Token(currentToken.toString(), false));
+                    currentToken = new StringBuilder();
+                }
+                tokens.add(new Token("&", false));
+                i++;
+                while (i < input.length() && Character.isWhitespace(input.charAt(i))) {
+                    i++;
+                }
             } else if (c == '>' && !inSingleQuote && !inDoubleQuote) {
                 if (currentToken.length() > 0) {
                     String tokenStr = currentToken.toString();
@@ -160,6 +171,14 @@ public class Main {
         }
         
         CommandParseResult result = new CommandParseResult();
+        if (!tokens.isEmpty()) {
+            Token last = tokens.get(tokens.size() - 1);
+            if (!last.isRedirection && last.text.equals("&")) {
+                result.isBackground = true;
+                tokens.remove(tokens.size() - 1);
+            }
+        }
+        
         for (int j = 0; j < tokens.size(); j++) {
             Token t = tokens.get(j);
             if (t.isRedirection) {
@@ -365,7 +384,13 @@ public class Main {
             }
 
             Process process = processBuilder.start();
-            process.waitFor();
+            if (parseResult.isBackground) {
+                jobCounter++;
+                System.out.println("[" + jobCounter + "] " + process.pid());
+                System.out.flush();
+            } else {
+                process.waitFor();
+            }
         } catch (IOException e) {
             System.out.println(command + ": command not found");
         } catch (InterruptedException e) {
@@ -459,6 +484,7 @@ public class Main {
         return prefix;
     }
 
+    private static int jobCounter = 0;
     private static boolean isRawMode = false;
     private static final BufferedReader fallbackReader = new java.io.BufferedReader(new java.io.InputStreamReader(System.in));
 

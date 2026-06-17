@@ -188,15 +188,17 @@ public class Main {
     }
 
     public static void executeExternalCommand(String input) {
-        String[] externalProgram = input.split(" ");
-        try {
+        List<String> args = parseCommandLine(input);
+        if (args.isEmpty()) {
+            return;
+        }
 
-            ProcessBuilder processBuilder = new ProcessBuilder(externalProgram); // Execute program
+        try {
+            ProcessBuilder processBuilder = new ProcessBuilder(args);
             processBuilder.redirectErrorStream(true);
             Process process = processBuilder.start();
 
-            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream())); // Process
-                                                                                                                 // output
+            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
 
             String line;
             while ((line = bufferedReader.readLine()) != null) {
@@ -205,5 +207,46 @@ public class Main {
         } catch (IOException e) {
             System.out.println(input + ": command not found");
         }
+    }
+
+    public static List<String> parseCommandLine(String input) {
+        List<String> args = new java.util.ArrayList<>();
+        StringBuilder currentArg = new StringBuilder();
+        int i = 0;
+        boolean inSingleQuote = false;
+        boolean inDoubleQuote = false;
+
+        while (i < input.length()) {
+            char c = input.charAt(i);
+
+            if (c == '\'' && !inDoubleQuote) {
+                inSingleQuote = !inSingleQuote;
+                i++;
+            } else if (c == '"' && !inSingleQuote) {
+                inDoubleQuote = !inDoubleQuote;
+                i++;
+            } else if (Character.isWhitespace(c) && !inSingleQuote && !inDoubleQuote) {
+                // End of argument
+                if (currentArg.length() > 0) {
+                    args.add(currentArg.toString());
+                    currentArg = new StringBuilder();
+                }
+                // Skip whitespace
+                while (i < input.length() && Character.isWhitespace(input.charAt(i))) {
+                    i++;
+                }
+            } else {
+                // Add character to current argument
+                currentArg.append(c);
+                i++;
+            }
+        }
+
+        // Add final argument if any
+        if (currentArg.length() > 0) {
+            args.add(currentArg.toString());
+        }
+
+        return args;
     }
 }

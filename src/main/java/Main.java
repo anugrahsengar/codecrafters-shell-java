@@ -205,14 +205,19 @@ public class Main {
         }
 
         String outputFile = null;
+        boolean append = false;
         List<String> args = new java.util.ArrayList<>(parts);
 
-        // Check for output redirection
-        int redirectIndex = args.indexOf(">");
-        if (redirectIndex != -1 && redirectIndex + 1 < args.size()) {
-            outputFile = args.get(redirectIndex + 1);
-            // Remove redirection operator and file from args
-            args.subList(redirectIndex, args.size()).clear();
+        // Check for output redirection (>, 1>, >>)
+        for (int i = 0; i < args.size(); i++) {
+            String arg = args.get(i);
+            if ((arg.equals(">") || arg.equals("1>") || arg.equals(">>")) && i + 1 < args.size()) {
+                outputFile = args.get(i + 1);
+                append = arg.equals(">>");
+                // Remove redirection operator and file from args
+                args.subList(i, args.size()).clear();
+                break;
+            }
         }
 
         if (args.isEmpty()) {
@@ -225,7 +230,12 @@ public class Main {
 
             if (outputFile != null) {
                 // Redirect stdout to file
-                processBuilder.redirectOutput(new File(outputFile));
+                File outFile = new File(outputFile);
+                if (append) {
+                    processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(outFile));
+                } else {
+                    processBuilder.redirectOutput(outFile);
+                }
             }
 
             Process process = processBuilder.start();
@@ -269,14 +279,47 @@ public class Main {
                 inDoubleQuote = !inDoubleQuote;
                 i++;
             } else if (c == '>' && !inSingleQuote && !inDoubleQuote) {
-                // Redirection operator
+                // Check for >> or 1> or 2>
                 if (currentArg.length() > 0) {
-                    args.add(currentArg.toString());
+                    String arg = currentArg.toString();
+                    // Check if current arg is a file descriptor number followed by >
+                    if ((arg.equals("1") || arg.equals("2")) && i + 1 < input.length() && input.charAt(i + 1) == '>') {
+                        // This is 1>> or 2>> - treat the number as part of redirection
+                        args.remove(args.size() - 1);
+                        i++; // Skip the second >
+                        if (i < input.length() && input.charAt(i) == '>') {
+                            // This is 1>> or 2>>
+                            args.add(">>");
+                            i++;
+                        } else {
+                            // This is 1> or 2>
+                            args.add(arg + ">");
+                        }
+                    } else {
+                        args.add(arg);
+                        if (i + 1 < input.length() && input.charAt(i + 1) == '>') {
+                            // >>
+                            args.add(">>");
+                            i += 2;
+                        } else {
+                            // >
+                            args.add(">");
+                            i++;
+                        }
+                    }
                     currentArg = new StringBuilder();
+                } else {
+                    if (i + 1 < input.length() && input.charAt(i + 1) == '>') {
+                        // >>
+                        args.add(">>");
+                        i += 2;
+                    } else {
+                        // >
+                        args.add(">");
+                        i++;
+                    }
                 }
-                args.add(">");
-                i++;
-                // Skip whitespace after >
+                // Skip whitespace after redirection
                 while (i < input.length() && Character.isWhitespace(input.charAt(i))) {
                     i++;
                 }

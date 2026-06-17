@@ -37,7 +37,7 @@ public class Main {
             // Check for type of command
             switch (command) {
                 case "echo":
-                    System.out.println(handleEcho(arguments));
+                    handleEchoCommand(input);
                     break;
                 case "type":
                     type(commandList, arguments);
@@ -106,6 +106,60 @@ public class Main {
 
         // Return as-is if not quoted
         return input;
+    }
+
+    public static void handleEchoCommand(String input) {
+        // Parse echo command with potential redirection
+        List<String> parts = parseCommandLineWithRedirection(input);
+        if (parts.isEmpty()) {
+            return;
+        }
+
+        // Remove "echo" command from parts
+        parts.remove(0);
+
+        String outputFile = null;
+        boolean append = false;
+
+        // Check for output redirection (>, 1>, >>)
+        for (int i = 0; i < parts.size(); i++) {
+            String arg = parts.get(i);
+            if ((arg.equals(">") || arg.equals("1>") || arg.equals(">>")) && i + 1 < parts.size()) {
+                outputFile = parts.get(i + 1);
+                append = arg.equals(">>");
+                // Remove redirection operator and file from parts
+                parts.subList(i, parts.size()).clear();
+                break;
+            }
+        }
+
+        // Reconstruct echo arguments from remaining parts
+        StringBuilder echoArgs = new StringBuilder();
+        for (int i = 0; i < parts.size(); i++) {
+            if (i > 0) echoArgs.append(" ");
+            echoArgs.append(parts.get(i));
+        }
+
+        String output = handleEcho(echoArgs.toString());
+
+        if (outputFile != null) {
+            // Write to file
+            try {
+                java.io.FileWriter writer;
+                if (append) {
+                    writer = new java.io.FileWriter(outputFile, true);
+                } else {
+                    writer = new java.io.FileWriter(outputFile, false);
+                }
+                writer.write(output);
+                writer.write("\n");
+                writer.close();
+            } catch (IOException e) {
+                System.out.println("Error writing to file: " + outputFile);
+            }
+        } else {
+            System.out.println(output);
+        }
     }
 
     public static String handleEcho(String arguments) {

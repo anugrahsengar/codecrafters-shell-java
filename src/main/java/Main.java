@@ -109,58 +109,117 @@ public class Main {
     }
 
     public static void handleEchoCommand(String input) {
-        // Parse echo command with potential redirection
-        List<String> parts = parseCommandLineWithRedirection(input);
-        if (parts.isEmpty()) {
-            return;
+        // Parse echo command, handling quotes and redirection
+        // We need to parse this carefully to preserve quote information
+
+        List<String> args = new java.util.ArrayList<>();
+        StringBuilder currentArg = new StringBuilder();
+        int i = 5; // Skip "echo "
+        boolean inSingleQuote = false;
+        boolean inDoubleQuote = false;
+
+        // Skip spaces after "echo"
+        while (i < input.length() && Character.isWhitespace(input.charAt(i))) {
+            i++;
         }
 
-        // Remove "echo" command from parts
-        parts.remove(0);
-
         String outputFile = null;
-        boolean append = false;
 
-        // Check for output redirection (>, 1>, >>, 1>>, 2>, 2>>)
-        for (int i = 0; i < parts.size(); i++) {
-            String arg = parts.get(i);
-            if ((arg.equals(">") || arg.equals("1>") || arg.equals(">>") || arg.equals("1>>") || arg.equals("2>")
-                    || arg.equals("2>>")) && i + 1 < parts.size()) {
-                outputFile = parts.get(i + 1);
-                append = arg.contains(">>");
-                // Remove redirection operator and file from parts
-                parts.subList(i, parts.size()).clear();
+        // Parse arguments until we hit a redirection operator
+        while (i < input.length()) {
+            char c = input.charAt(i);
+
+            if (c == '\\' && !inSingleQuote && i + 1 < input.length()) {
+                char nextChar = input.charAt(i + 1);
+                if (inDoubleQuote) {
+                    // Inside double quotes: backslash only escapes $, `, ", \, and newline
+                    if (nextChar == '$' || nextChar == '`' || nextChar == '"' || nextChar == '\\' || nextChar == '\n') {
+                        currentArg.append(nextChar);
+                        i += 2;
+                    } else {
+                        // Keep backslash literally
+                        currentArg.append(c);
+                        i++;
+                    }
+                } else {
+                    // Outside quotes: escape the next character
+                    currentArg.append(nextChar);
+                    i += 2;
+                }
+            } else if (c == '\'' && !inDoubleQuote) {
+                inSingleQuote = !inSingleQuote;
+                i++;
+            } else if (c == '"' && !inSingleQuote) {
+                inDoubleQuote = !inDoubleQuote;
+                i++;
+            } else if ((c == '>' || (c == '1' && i + 1 < input.length() && input.charAt(i + 1) == '>')
+                    || (c == '2' && i + 1 < input.length() && input.charAt(i + 1) == '>')) && !inSingleQuote
+                    && !inDoubleQuote) {
+                // Hit a redirection operator
+                if (currentArg.length() > 0) {
+                    args.add(currentArg.toString());
+                }
+
+                // Parse redirection
+                if (c == '1' || c == '2') {
+                    String redirectOp = input.substring(i, Math.min(i + 3, input.length()));
+                    i += redirectOp.length();
+                } else {
+                    i++;
+                    if (i < input.length() && input.charAt(i) == '>') {
+                        i++;
+                    }
+                }
+
+                // Skip spaces
+                while (i < input.length() && Character.isWhitespace(input.charAt(i))) {
+                    i++;
+                }
+
+                // Get filename
+                StringBuilder filename = new StringBuilder();
+                while (i < input.length() && !Character.isWhitespace(input.charAt(i))) {
+                    filename.append(input.charAt(i));
+                    i++;
+                }
+                outputFile = filename.toString();
                 break;
+            } else if (Character.isWhitespace(c) && !inSingleQuote && !inDoubleQuote) {
+                if (currentArg.length() > 0) {
+                    args.add(currentArg.toString());
+                    currentArg = new StringBuilder();
+                }
+                i++;
+            } else {
+                currentArg.append(c);
+                i++;
             }
         }
 
-        // Reconstruct echo arguments from remaining parts
-        StringBuilder echoArgs = new StringBuilder();
-        for (int i = 0; i < parts.size(); i++) {
-            if (i > 0)
-                echoArgs.append(" ");
-            echoArgs.append(parts.get(i));
+        if (currentArg.length() > 0) {
+            args.add(currentArg.toString());
         }
 
-        String output = handleEcho(echoArgs.toString());
+        // Join arguments with spaces
+        StringBuilder echoOutput = new StringBuilder();
+        for (int j = 0; j < args.size(); j++) {
+            if (j > 0)
+                echoOutput.append(" ");
+            echoOutput.append(args.get(j));
+        }
 
         if (outputFile != null) {
             // Write to file
             try {
-                java.io.FileWriter writer;
-                if (append) {
-                    writer = new java.io.FileWriter(outputFile, true);
-                } else {
-                    writer = new java.io.FileWriter(outputFile, false);
-                }
-                writer.write(output);
+                java.io.FileWriter writer = new java.io.FileWriter(outputFile, false);
+                writer.write(echoOutput.toString());
                 writer.write("\n");
                 writer.close();
             } catch (IOException e) {
                 System.out.println("Error writing to file: " + outputFile);
             }
         } else {
-            System.out.println(output);
+            System.out.println(echoOutput.toString());
         }
     }
 
@@ -179,16 +238,46 @@ public class Main {
         while (i < arguments.length()) {
             char c = arguments.charAt(i);
 
-            if (c == '\\' && !inSingleQuote && i + 1 < arguments.length()) {
-                // Backslash escape outside quotes - add the escaped character
-                i++;
-                char nextChar = arguments.charAt(i);
-                if (lastWasSpace && result.length() > 0) {
-                    result.append(" ");
-                    lastWasSpace = false;
+            if (c == '\\' && !inSingleQuote) {
+                if (inDoubleQuote && i + 1 < arguments.length()) {
+                    // Inside double quotes: backslash only escapes $, `, ", \, and newline
+                    char nextChar = arguments.charAt(i + 1);
+                    if (nextChar == '$' || nextChar == '`' || nextChar == '"' || nextChar == '\\' || nextChar == '\n') {
+                        // Escape the special character
+                        if (lastWasSpace && result.length() > 0) {
+                            result.append(" ");
+                            lastWasSpace = false;
+                        }
+                        currentToken.append(nextChar);
+                        i += 2;
+                    } else {
+                        // Not a special character, keep the backslash literally
+                        if (lastWasSpace && result.length() > 0) {
+                            result.append(" ");
+                            lastWasSpace = false;
+                        }
+                        currentToken.append(c);
+                        i++;
+                    }
+                } else if (!inDoubleQuote && i + 1 < arguments.length()) {
+                    // Outside quotes: backslash escapes the next character
+                    i++;
+                    char nextChar = arguments.charAt(i);
+                    if (lastWasSpace && result.length() > 0) {
+                        result.append(" ");
+                        lastWasSpace = false;
+                    }
+                    currentToken.append(nextChar);
+                    i++;
+                } else {
+                    // Backslash at end of input
+                    if (lastWasSpace && result.length() > 0) {
+                        result.append(" ");
+                        lastWasSpace = false;
+                    }
+                    currentToken.append(c);
+                    i++;
                 }
-                currentToken.append(nextChar);
-                i++;
             } else if (c == '\'' && !inDoubleQuote) {
                 inSingleQuote = !inSingleQuote;
                 i++;

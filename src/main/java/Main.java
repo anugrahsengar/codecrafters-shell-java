@@ -17,6 +17,7 @@ public class Main {
         List<String> commandList = Arrays.asList("echo", "exit", "type", "pwd", "cd", "jobs"); // List of possible commands
 
         while (true) {
+            reapDoneJobs();
             System.out.print("$ ");
             System.out.flush();
             String input = readRawLine();
@@ -676,5 +677,32 @@ public class Main {
         
         System.out.println();
         return buffer.toString();
+    }
+
+    public static void reapDoneJobs() {
+        for (Job job : backgroundJobs) {
+            if (job.status.equals("Running") && !job.process.isAlive()) {
+                job.status = "Done";
+            }
+        }
+        boolean printedAny = false;
+        for (int j = 0; j < backgroundJobs.size(); j++) {
+            Job job = backgroundJobs.get(j);
+            if (job.status.equals("Done")) {
+                String marker = " ";
+                if (j == backgroundJobs.size() - 1) {
+                    marker = "+";
+                } else if (j == backgroundJobs.size() - 2) {
+                    marker = "-";
+                }
+                String statusField = String.format("%-24s", job.status);
+                System.out.println("[" + job.jobNumber + "]" + marker + "  " + statusField + job.command);
+                printedAny = true;
+            }
+        }
+        if (printedAny) {
+            System.out.flush();
+        }
+        backgroundJobs.removeIf(job -> job.status.equals("Done"));
     }
 }

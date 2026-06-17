@@ -261,16 +261,23 @@ public class Main {
         }
 
         String outputFile = null;
+        String errorFile = null;
         boolean append = false;
+        boolean appendError = false;
         List<String> args = new java.util.ArrayList<>(parts);
 
         // Check for output redirection (>, 1>, >>, 1>>, 2>, 2>>)
         for (int i = 0; i < args.size(); i++) {
             String arg = args.get(i);
-            if ((arg.equals(">") || arg.equals("1>") || arg.equals(">>") || arg.equals("1>>") || arg.equals("2>")
-                    || arg.equals("2>>")) && i + 1 < args.size()) {
+            if ((arg.equals(">") || arg.equals("1>") || arg.equals(">>") || arg.equals("1>>")) && i + 1 < args.size()) {
                 outputFile = args.get(i + 1);
                 append = arg.contains(">>");
+                // Remove redirection operator and file from args
+                args.subList(i, args.size()).clear();
+                break;
+            } else if ((arg.equals("2>") || arg.equals("2>>")) && i + 1 < args.size()) {
+                errorFile = args.get(i + 1);
+                appendError = arg.contains(">>");
                 // Remove redirection operator and file from args
                 args.subList(i, args.size()).clear();
                 break;
@@ -283,7 +290,12 @@ public class Main {
 
         try {
             ProcessBuilder processBuilder = new ProcessBuilder(args);
-            processBuilder.redirectErrorStream(true);
+
+            // Only redirect error stream to stdout if neither stdout nor stderr are
+            // redirected
+            if (outputFile == null && errorFile == null) {
+                processBuilder.redirectErrorStream(true);
+            }
 
             if (outputFile != null) {
                 // Redirect stdout to file
@@ -295,6 +307,16 @@ public class Main {
                 }
             }
 
+            if (errorFile != null) {
+                // Redirect stderr to file
+                File errFile = new File(errorFile);
+                if (appendError) {
+                    processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(errFile));
+                } else {
+                    processBuilder.redirectError(errFile);
+                }
+            }
+
             Process process = processBuilder.start();
 
             if (outputFile == null) {
@@ -303,6 +325,15 @@ public class Main {
                 String line;
                 while ((line = bufferedReader.readLine()) != null) {
                     System.out.println(line);
+                }
+            }
+
+            if (errorFile == null && outputFile != null) {
+                // If stdout is redirected but stderr is not, read stderr and print it
+                BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+                String line;
+                while ((line = errorReader.readLine()) != null) {
+                    System.err.println(line);
                 }
             }
 

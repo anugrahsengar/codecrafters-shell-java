@@ -457,35 +457,46 @@ public class Main {
         return prefix;
     }
 
+    private static boolean isRawMode = false;
+    private static final BufferedReader fallbackReader = new java.io.BufferedReader(new java.io.InputStreamReader(System.in));
+
     public static void disableRawMode() {
-        try {
-            new ProcessBuilder("stty", "icanon", "echo")
-                .redirectInput(ProcessBuilder.Redirect.INHERIT)
-                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                .redirectError(ProcessBuilder.Redirect.DISCARD)
-                .start()
-                .waitFor();
-        } catch (Exception e) {
-            // ignore
+        if (isRawMode) {
+            try {
+                new ProcessBuilder("stty", "icanon", "echo")
+                    .redirectInput(ProcessBuilder.Redirect.INHERIT)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .redirectError(ProcessBuilder.Redirect.DISCARD)
+                    .start()
+                    .waitFor();
+            } catch (Exception e) {
+                // ignore
+            }
+            isRawMode = false;
         }
     }
 
-    public static void enableRawMode() {
+    public static boolean enableRawMode() {
         try {
-            new ProcessBuilder("stty", "-icanon", "-echo")
+            Process p = new ProcessBuilder("stty", "-icanon", "-echo")
                 .redirectInput(ProcessBuilder.Redirect.INHERIT)
                 .redirectOutput(ProcessBuilder.Redirect.DISCARD)
                 .redirectError(ProcessBuilder.Redirect.DISCARD)
-                .start()
-                .waitFor();
+                .start();
+            int exitCode = p.waitFor();
+            isRawMode = (exitCode == 0);
+            return isRawMode;
         } catch (Exception e) {
-            // ignore
+            isRawMode = false;
+            return false;
         }
     }
 
     public static String readRawLine() throws IOException {
+        if (!enableRawMode()) {
+            return fallbackReader.readLine();
+        }
         StringBuilder buffer = new StringBuilder();
-        enableRawMode();
         boolean lastWasTab = false;
         
         try {

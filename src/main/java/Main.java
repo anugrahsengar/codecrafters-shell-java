@@ -331,8 +331,6 @@ public class Main {
         List<String> args = parseResult.args;
         String command = args.get(0);
 
-        disableRawMode();
-
         try {
             ProcessBuilder processBuilder = new ProcessBuilder(args);
 
@@ -370,8 +368,6 @@ public class Main {
             System.out.println(command + ": command not found");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        } finally {
-            enableRawMode();
         }
     }
 

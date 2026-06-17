@@ -8,16 +8,20 @@ import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) throws Exception {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            disableRawMode();
+        }));
 
-        Scanner scanner = new Scanner(System.in);
         List<String> commandList = Arrays.asList("echo", "exit", "type", "pwd", "cd", "jobs"); // List of possible commands
 
         while (true) {
             System.out.print("$ ");
-            if (!scanner.hasNextLine()) {
+            System.out.flush();
+            String input = readRawLine();
+            if (input == null) {
                 break;
             }
-            String input = scanner.nextLine().trim();
+            input = input.trim();
 
             if (input.isEmpty()) {
                 System.out.println("Please enter a non-empty command.");
@@ -365,5 +369,233 @@ public class Main {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    public static List<String> getCompletionCandidates(String prefix) {
+        List<String> candidates = new java.util.ArrayList<>();
+        List<String> builtins = Arrays.asList("echo", "exit", "type", "pwd", "cd", "jobs");
+        for (String builtin : builtins) {
+            if (builtin.startsWith(prefix)) {
+                candidates.add(builtin);
+            }
+        }
+        
+        String pathEnv = System.getenv("PATH");
+        if (pathEnv != null) {
+            String[] dirs = pathEnv.split(":");
+            for (String dir : dirs) {
+                File dirFile = new File(dir);
+                if (dirFile.exists() && dirFile.isDirectory()) {
+                    File[] files = dirFile.listFiles();
+                    if (files != null) {
+                        for (File f : files) {
+                            if (f.isFile() && f.canExecute() && f.getName().startsWith(prefix)) {
+                                if (!candidates.contains(f.getName())) {
+                                    candidates.add(f.getName());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        java.util.Collections.sort(candidates);
+        return candidates;
+    }
+
+    public static List<String> getPathCompletionCandidates(String pathPrefix) {
+        List<String> candidates = new java.util.ArrayList<>();
+        
+        String dirPath = ".";
+        String filePrefix = pathPrefix;
+        
+        int lastSlash = pathPrefix.lastIndexOf('/');
+        if (lastSlash != -1) {
+            dirPath = pathPrefix.substring(0, lastSlash + 1);
+            filePrefix = pathPrefix.substring(lastSlash + 1);
+        }
+        
+        if (dirPath.isEmpty()) {
+            dirPath = "/";
+        }
+        
+        File dir = new File(dirPath);
+        if (dir.exists() && dir.isDirectory()) {
+            File[] files = dir.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    if (f.getName().startsWith(filePrefix)) {
+                        String name = f.getName();
+                        if (name.startsWith(".") && !filePrefix.startsWith(".")) {
+                            continue;
+                        }
+                        if (f.isDirectory()) {
+                            name += "/";
+                        } else {
+                            name += " ";
+                        }
+                        candidates.add(name);
+                    }
+                }
+            }
+        }
+        
+        java.util.Collections.sort(candidates);
+        return candidates;
+    }
+
+    public static String findLongestCommonPrefix(List<String> strs) {
+        if (strs == null || strs.isEmpty()) return "";
+        String prefix = strs.get(0);
+        for (int i = 1; i < strs.size(); i++) {
+            while (strs.get(i).indexOf(prefix) != 0) {
+                prefix = prefix.substring(0, prefix.length() - 1);
+                if (prefix.isEmpty()) return "";
+            }
+        }
+        return prefix;
+    }
+
+    public static void disableRawMode() {
+        try {
+            new ProcessBuilder("stty", "icanon", "echo")
+                .redirectInput(ProcessBuilder.Redirect.INHERIT)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start()
+                .waitFor();
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
+    public static void enableRawMode() {
+        try {
+            new ProcessBuilder("stty", "-icanon", "-echo")
+                .redirectInput(ProcessBuilder.Redirect.INHERIT)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start()
+                .waitFor();
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
+    public static String readRawLine() throws IOException {
+        StringBuilder buffer = new StringBuilder();
+        enableRawMode();
+        boolean lastWasTab = false;
+        
+        try {
+            while (true) {
+                int b = System.in.read();
+                if (b == -1 || b == 4) { // EOF or Ctrl+D
+                    if (buffer.length() == 0) {
+                        return null;
+                    }
+                    break;
+                }
+                
+                if (b == 27) { // Escape sequence
+                    int next = System.in.read();
+                    if (next == 91) {
+                        while (true) {
+                            int code = System.in.read();
+                            if (code >= 64 && code <= 126) {
+                                break;
+                            }
+                        }
+                    }
+                    lastWasTab = false;
+                    continue;
+                }
+                
+                if (b == 127 || b == 8) { // Backspace
+                    if (buffer.length() > 0) {
+                        buffer.deleteCharAt(buffer.length() - 1);
+                        System.out.print("\b \b");
+                        System.out.flush();
+                    }
+                    lastWasTab = false;
+                    continue;
+                }
+                
+                if (b == '\n' || b == '\r') {
+                    break;
+                }
+                
+                if (b == 9) { // Tab
+                    String currentInput = buffer.toString();
+                    int lastSpace = currentInput.lastIndexOf(" ");
+                    String lastWord = lastSpace == -1 ? currentInput : currentInput.substring(lastSpace + 1);
+                    
+                    List<String> candidates;
+                    String filePrefix = "";
+                    
+                    if (lastSpace == -1) {
+                        candidates = getCompletionCandidates(lastWord);
+                    } else {
+                        candidates = getPathCompletionCandidates(lastWord);
+                        int lastSlash = lastWord.lastIndexOf('/');
+                        if (lastSlash != -1) {
+                            filePrefix = lastWord.substring(lastSlash + 1);
+                        } else {
+                            filePrefix = lastWord;
+                        }
+                    }
+                    
+                    if (candidates.size() == 1) {
+                        String match = candidates.get(0);
+                        String suffix;
+                        if (lastSpace == -1) {
+                            String completed = match + " ";
+                            suffix = completed.substring(lastWord.length());
+                        } else {
+                            suffix = match.substring(filePrefix.length());
+                        }
+                        System.out.print(suffix);
+                        System.out.flush();
+                        buffer.append(suffix);
+                    } else if (candidates.size() > 1) {
+                        String lcp = findLongestCommonPrefix(candidates);
+                        String currentPrefix = lastSpace == -1 ? lastWord : filePrefix;
+                        if (lcp.length() > currentPrefix.length()) {
+                            String suffix = lcp.substring(currentPrefix.length());
+                            System.out.print(suffix);
+                            System.out.flush();
+                            buffer.append(suffix);
+                        } else {
+                            if (lastWasTab) {
+                                System.out.print("\r\n");
+                                System.out.print(String.join("  ", candidates) + "\r\n");
+                                System.out.print("$ " + buffer.toString());
+                                System.out.flush();
+                            } else {
+                                System.out.print("\u0007");
+                                System.out.flush();
+                            }
+                        }
+                    } else {
+                        System.out.print("\u0007");
+                        System.out.flush();
+                    }
+                    lastWasTab = true;
+                    continue;
+                }
+                
+                char c = (char) b;
+                buffer.append(c);
+                System.out.print(c);
+                System.out.flush();
+                lastWasTab = false;
+            }
+        } finally {
+            disableRawMode();
+        }
+        
+        System.out.println();
+        return buffer.toString();
     }
 }

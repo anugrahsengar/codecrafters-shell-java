@@ -63,12 +63,18 @@ public class Main {
         public long pid;
         public String command;
         public String status;
+        public Process process;
         
-        public Job(int jobNumber, long pid, String command, String status) {
+        public Job(int jobNumber, long pid, String command, String status, Process process) {
             this.jobNumber = jobNumber;
             this.pid = pid;
-            this.command = command;
+            String cleanedCommand = command.trim();
+            if (cleanedCommand.endsWith("&")) {
+                cleanedCommand = cleanedCommand.substring(0, cleanedCommand.length() - 1).trim();
+            }
+            this.command = cleanedCommand;
             this.status = status;
+            this.process = process;
         }
     }
 
@@ -340,6 +346,11 @@ public class Main {
                     }
                     break;
                 case "jobs":
+                    for (Job job : backgroundJobs) {
+                        if (job.status.equals("Running") && !job.process.isAlive()) {
+                            job.status = "Done";
+                        }
+                    }
                     for (int j = 0; j < backgroundJobs.size(); j++) {
                         Job job = backgroundJobs.get(j);
                         String marker = " ";
@@ -349,9 +360,14 @@ public class Main {
                             marker = "-";
                         }
                         String statusField = String.format("%-24s", job.status);
-                        System.out.println("[" + job.jobNumber + "]" + marker + "  " + statusField + job.command);
+                        String commandToPrint = job.command;
+                        if (job.status.equals("Running")) {
+                            commandToPrint += " &";
+                        }
+                        System.out.println("[" + job.jobNumber + "]" + marker + "  " + statusField + commandToPrint);
                     }
                     System.out.flush();
+                    backgroundJobs.removeIf(job -> job.status.equals("Done"));
                     break;
                 default:
                     executeExternal(parseResult, input);
@@ -414,7 +430,7 @@ public class Main {
                 jobCounter++;
                 System.out.println("[" + jobCounter + "] " + process.pid());
                 System.out.flush();
-                backgroundJobs.add(new Job(jobCounter, process.pid(), input, "Running"));
+                backgroundJobs.add(new Job(jobCounter, process.pid(), input, "Running", process));
             } else {
                 process.waitFor();
             }

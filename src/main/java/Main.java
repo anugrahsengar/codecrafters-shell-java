@@ -113,15 +113,50 @@ public class Main {
             return "";
         }
 
-        // Check if entire argument is quoted
-        if ((arguments.startsWith("'") && arguments.endsWith("'")) ||
-                (arguments.startsWith("\"") && arguments.endsWith("\"")) &&
-                        arguments.length() >= 2) {
-            return parseQuotedString(arguments);
+        StringBuilder result = new StringBuilder();
+        int i = 0;
+        boolean inSingleQuote = false;
+        boolean inDoubleQuote = false;
+        StringBuilder currentToken = new StringBuilder();
+        boolean lastWasSpace = false;
+
+        while (i < arguments.length()) {
+            char c = arguments.charAt(i);
+
+            if (c == '\'' && !inDoubleQuote) {
+                inSingleQuote = !inSingleQuote;
+                i++;
+            } else if (c == '"' && !inSingleQuote) {
+                inDoubleQuote = !inDoubleQuote;
+                i++;
+            } else if (Character.isWhitespace(c) && !inSingleQuote && !inDoubleQuote) {
+                // Outside quotes: collapse whitespace
+                if (currentToken.length() > 0) {
+                    result.append(currentToken);
+                    currentToken = new StringBuilder();
+                    lastWasSpace = true;
+                }
+                // Skip all consecutive whitespace
+                while (i < arguments.length() && Character.isWhitespace(arguments.charAt(i))) {
+                    i++;
+                }
+            } else {
+                // Inside or outside quotes: accumulate character
+                if (lastWasSpace && result.length() > 0) {
+                    result.append(" ");
+                    lastWasSpace = false;
+                }
+                currentToken.append(c);
+                i++;
+            }
         }
 
-        // Otherwise collapse multiple whitespace into single spaces
-        return arguments.replaceAll("\\s+", " ");
+        // Add any remaining token
+        if (currentToken.length() > 0) {
+            result.append(currentToken);
+        }
+
+        return result.toString();
     }
 
     public static void type(List<String> commandList, String arguments) {

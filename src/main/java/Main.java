@@ -10,7 +10,7 @@ public class Main {
     public static void main(String[] args) throws Exception {
 
         Scanner scanner = new Scanner(System.in);
-        List<String> commandList = Arrays.asList("echo", "exit", "type", "pwd", "cd"); // List of possible commands
+        List<String> commandList = Arrays.asList("echo", "exit", "type", "pwd", "cd", "jobs"); // List of possible commands
 
         while (true) {
             System.out.print("$ ");
@@ -299,6 +299,8 @@ public class Main {
                             System.out.println("cd: " + (args.isEmpty() ? "" : args.get(0)) + ": No such file or directory");
                         }
                     }
+                    break;
+                case "jobs":
                     break;
                 default:
                     executeExternal(parseResult);

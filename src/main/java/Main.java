@@ -121,12 +121,13 @@ public class Main {
         String outputFile = null;
         boolean append = false;
 
-        // Check for output redirection (>, 1>, >>)
+        // Check for output redirection (>, 1>, >>, 1>>, 2>, 2>>)
         for (int i = 0; i < parts.size(); i++) {
             String arg = parts.get(i);
-            if ((arg.equals(">") || arg.equals("1>") || arg.equals(">>")) && i + 1 < parts.size()) {
+            if ((arg.equals(">") || arg.equals("1>") || arg.equals(">>") || arg.equals("1>>") || arg.equals("2>")
+                    || arg.equals("2>>")) && i + 1 < parts.size()) {
                 outputFile = parts.get(i + 1);
-                append = arg.equals(">>");
+                append = arg.contains(">>");
                 // Remove redirection operator and file from parts
                 parts.subList(i, parts.size()).clear();
                 break;
@@ -136,7 +137,8 @@ public class Main {
         // Reconstruct echo arguments from remaining parts
         StringBuilder echoArgs = new StringBuilder();
         for (int i = 0; i < parts.size(); i++) {
-            if (i > 0) echoArgs.append(" ");
+            if (i > 0)
+                echoArgs.append(" ");
             echoArgs.append(parts.get(i));
         }
 
@@ -262,12 +264,13 @@ public class Main {
         boolean append = false;
         List<String> args = new java.util.ArrayList<>(parts);
 
-        // Check for output redirection (>, 1>, >>)
+        // Check for output redirection (>, 1>, >>, 1>>, 2>, 2>>)
         for (int i = 0; i < args.size(); i++) {
             String arg = args.get(i);
-            if ((arg.equals(">") || arg.equals("1>") || arg.equals(">>")) && i + 1 < args.size()) {
+            if ((arg.equals(">") || arg.equals("1>") || arg.equals(">>") || arg.equals("1>>") || arg.equals("2>")
+                    || arg.equals("2>>")) && i + 1 < args.size()) {
                 outputFile = args.get(i + 1);
-                append = arg.equals(">>");
+                append = arg.contains(">>");
                 // Remove redirection operator and file from args
                 args.subList(i, args.size()).clear();
                 break;
@@ -336,20 +339,20 @@ public class Main {
                 // Check for >> or 1> or 2>
                 if (currentArg.length() > 0) {
                     String arg = currentArg.toString();
-                    // Check if current arg is a file descriptor number followed by >
-                    if ((arg.equals("1") || arg.equals("2")) && i + 1 < input.length() && input.charAt(i + 1) == '>') {
-                        // This is 1>> or 2>> - treat the number as part of redirection
-                        args.remove(args.size() - 1);
-                        i++; // Skip the second >
-                        if (i < input.length() && input.charAt(i) == '>') {
+                    // Check if current arg is a file descriptor number
+                    if (arg.equals("1") || arg.equals("2")) {
+                        // This is a file descriptor before >, so combine them
+                        if (i + 1 < input.length() && input.charAt(i + 1) == '>') {
                             // This is 1>> or 2>>
-                            args.add(">>");
-                            i++;
+                            args.add(arg + ">>");
+                            i += 2;
                         } else {
                             // This is 1> or 2>
                             args.add(arg + ">");
+                            i++;
                         }
                     } else {
+                        // Regular argument followed by redirect
                         args.add(arg);
                         if (i + 1 < input.length() && input.charAt(i + 1) == '>') {
                             // >>

@@ -123,7 +123,17 @@ public class Main {
         while (i < arguments.length()) {
             char c = arguments.charAt(i);
 
-            if (c == '\'' && !inDoubleQuote) {
+            if (c == '\\' && !inSingleQuote && i + 1 < arguments.length()) {
+                // Backslash escape outside quotes - add the escaped character
+                i++;
+                char nextChar = arguments.charAt(i);
+                if (lastWasSpace && result.length() > 0) {
+                    result.append(" ");
+                    lastWasSpace = false;
+                }
+                currentToken.append(nextChar);
+                i++;
+            } else if (c == '\'' && !inDoubleQuote) {
                 inSingleQuote = !inSingleQuote;
                 i++;
             } else if (c == '"' && !inSingleQuote) {
@@ -219,7 +229,12 @@ public class Main {
         while (i < input.length()) {
             char c = input.charAt(i);
 
-            if (c == '\'' && !inDoubleQuote) {
+            if (c == '\\' && !inSingleQuote && i + 1 < input.length()) {
+                // Backslash escape outside quotes - add the escaped character
+                i++;
+                currentArg.append(input.charAt(i));
+                i++;
+            } else if (c == '\'' && !inDoubleQuote) {
                 inSingleQuote = !inSingleQuote;
                 i++;
             } else if (c == '"' && !inSingleQuote) {

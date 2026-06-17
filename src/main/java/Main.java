@@ -12,6 +12,8 @@ public class Main {
             disableRawMode();
         }));
 
+        enableRawMode();
+
         List<String> commandList = Arrays.asList("echo", "exit", "type", "pwd", "cd", "jobs"); // List of possible commands
 
         while (true) {

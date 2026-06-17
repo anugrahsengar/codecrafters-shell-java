@@ -331,6 +331,8 @@ public class Main {
         List<String> args = parseResult.args;
         String command = args.get(0);
 
+        disableRawMode();
+
         try {
             ProcessBuilder processBuilder = new ProcessBuilder(args);
 
@@ -368,6 +370,8 @@ public class Main {
             System.out.println(command + ": command not found");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        } finally {
+            enableRawMode();
         }
     }
 
@@ -499,111 +503,107 @@ public class Main {
         StringBuilder buffer = new StringBuilder();
         boolean lastWasTab = false;
         
-        try {
-            while (true) {
-                int b = System.in.read();
-                if (b == -1 || b == 4) { // EOF or Ctrl+D
-                    if (buffer.length() == 0) {
-                        return null;
-                    }
-                    break;
+        while (true) {
+            int b = System.in.read();
+            if (b == -1 || b == 4) { // EOF or Ctrl+D
+                if (buffer.length() == 0) {
+                    return null;
                 }
-                
-                if (b == 27) { // Escape sequence
-                    int next = System.in.read();
-                    if (next == 91) {
-                        while (true) {
-                            int code = System.in.read();
-                            if (code >= 64 && code <= 126) {
-                                break;
-                            }
+                break;
+            }
+            
+            if (b == 27) { // Escape sequence
+                int next = System.in.read();
+                if (next == 91) {
+                    while (true) {
+                        int code = System.in.read();
+                        if (code >= 64 && code <= 126) {
+                            break;
                         }
                     }
-                    lastWasTab = false;
-                    continue;
                 }
-                
-                if (b == 127 || b == 8) { // Backspace
-                    if (buffer.length() > 0) {
-                        buffer.deleteCharAt(buffer.length() - 1);
-                        System.out.print("\b \b");
-                        System.out.flush();
-                    }
-                    lastWasTab = false;
-                    continue;
+                lastWasTab = false;
+                continue;
+            }
+            
+            if (b == 127 || b == 8) { // Backspace
+                if (buffer.length() > 0) {
+                    buffer.deleteCharAt(buffer.length() - 1);
+                    System.out.print("\b \b");
+                    System.out.flush();
                 }
+                lastWasTab = false;
+                continue;
+            }
+            
+            if (b == '\n' || b == '\r') {
+                break;
+            }
+            
+            if (b == 9) { // Tab
+                String currentInput = buffer.toString();
+                int lastSpace = currentInput.lastIndexOf(" ");
+                String lastWord = lastSpace == -1 ? currentInput : currentInput.substring(lastSpace + 1);
                 
-                if (b == '\n' || b == '\r') {
-                    break;
-                }
+                List<String> candidates;
+                String filePrefix = "";
                 
-                if (b == 9) { // Tab
-                    String currentInput = buffer.toString();
-                    int lastSpace = currentInput.lastIndexOf(" ");
-                    String lastWord = lastSpace == -1 ? currentInput : currentInput.substring(lastSpace + 1);
-                    
-                    List<String> candidates;
-                    String filePrefix = "";
-                    
-                    if (lastSpace == -1) {
-                        candidates = getCompletionCandidates(lastWord);
+                if (lastSpace == -1) {
+                    candidates = getCompletionCandidates(lastWord);
+                } else {
+                    candidates = getPathCompletionCandidates(lastWord);
+                    int lastSlash = lastWord.lastIndexOf('/');
+                    if (lastSlash != -1) {
+                        filePrefix = lastWord.substring(lastSlash + 1);
                     } else {
-                        candidates = getPathCompletionCandidates(lastWord);
-                        int lastSlash = lastWord.lastIndexOf('/');
-                        if (lastSlash != -1) {
-                            filePrefix = lastWord.substring(lastSlash + 1);
-                        } else {
-                            filePrefix = lastWord;
-                        }
+                        filePrefix = lastWord;
                     }
-                    
-                    if (candidates.size() == 1) {
-                        String match = candidates.get(0);
-                        String suffix;
-                        if (lastSpace == -1) {
-                            String completed = match + " ";
-                            suffix = completed.substring(lastWord.length());
-                        } else {
-                            suffix = match.substring(filePrefix.length());
-                        }
+                }
+                
+                if (candidates.size() == 1) {
+                    String match = candidates.get(0);
+                    String suffix;
+                    if (lastSpace == -1) {
+                        String completed = match + " ";
+                        suffix = completed.substring(lastWord.length());
+                    } else {
+                        suffix = match.substring(filePrefix.length());
+                    }
+                    System.out.print(suffix);
+                    System.out.flush();
+                    buffer.append(suffix);
+                } else if (candidates.size() > 1) {
+                    String lcp = findLongestCommonPrefix(candidates);
+                    String currentPrefix = lastSpace == -1 ? lastWord : filePrefix;
+                    if (lcp.length() > currentPrefix.length()) {
+                        String suffix = lcp.substring(currentPrefix.length());
                         System.out.print(suffix);
                         System.out.flush();
                         buffer.append(suffix);
-                    } else if (candidates.size() > 1) {
-                        String lcp = findLongestCommonPrefix(candidates);
-                        String currentPrefix = lastSpace == -1 ? lastWord : filePrefix;
-                        if (lcp.length() > currentPrefix.length()) {
-                            String suffix = lcp.substring(currentPrefix.length());
-                            System.out.print(suffix);
-                            System.out.flush();
-                            buffer.append(suffix);
-                        } else {
-                            if (lastWasTab) {
-                                System.out.print("\r\n");
-                                System.out.print(String.join("  ", candidates) + "\r\n");
-                                System.out.print("$ " + buffer.toString());
-                                System.out.flush();
-                            } else {
-                                System.out.print("\u0007");
-                                System.out.flush();
-                            }
-                        }
                     } else {
-                        System.out.print("\u0007");
-                        System.out.flush();
+                        if (lastWasTab) {
+                            System.out.print("\r\n");
+                            System.out.print(String.join("  ", candidates) + "\r\n");
+                            System.out.print("$ " + buffer.toString());
+                            System.out.flush();
+                        } else {
+                            System.out.print("\u0007");
+                            System.out.flush();
+                        }
                     }
-                    lastWasTab = true;
-                    continue;
+                } else {
+                    System.out.print("\u0007");
+                    System.out.flush();
                 }
-                
-                char c = (char) b;
-                buffer.append(c);
-                System.out.print(c);
-                System.out.flush();
-                lastWasTab = false;
+                lastWasTab = true;
+                continue;
             }
-        } finally {
-            disableRawMode();
+            
+            char c = (char) b;
+            buffer.append(c);
+            System.out.print(c);
+            System.out.flush();
+            lastWasTab = false;
         }
         
         System.out.println();

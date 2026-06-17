@@ -428,10 +428,10 @@ public class Main {
 
             Process process = processBuilder.start();
             if (parseResult.isBackground) {
-                jobCounter++;
-                System.out.println("[" + jobCounter + "] " + process.pid());
+                int nextJobNumber = getNextJobNumber();
+                System.out.println("[" + nextJobNumber + "] " + process.pid());
                 System.out.flush();
-                backgroundJobs.add(new Job(jobCounter, process.pid(), input, "Running", process));
+                backgroundJobs.add(new Job(nextJobNumber, process.pid(), input, "Running", process));
             } else {
                 process.waitFor();
             }
@@ -704,5 +704,22 @@ public class Main {
             System.out.flush();
         }
         backgroundJobs.removeIf(job -> job.status.equals("Done"));
+    }
+
+    public static int getNextJobNumber() {
+        int candidate = 1;
+        while (true) {
+            boolean used = false;
+            for (Job job : backgroundJobs) {
+                if (job.jobNumber == candidate) {
+                    used = true;
+                    break;
+                }
+            }
+            if (!used) {
+                return candidate;
+            }
+            candidate++;
+        }
     }
 }

@@ -35,7 +35,7 @@ public class Main {
                 continue;
             }
 
-            executeCommand(parseResult, commandList);
+            executeCommand(parseResult, commandList, input);
         }
     }
 
@@ -56,6 +56,20 @@ public class Main {
         public String stderrFile = null;
         public boolean stderrAppend = false;
         public boolean isBackground = false;
+    }
+
+    public static class Job {
+        public int jobNumber;
+        public long pid;
+        public String command;
+        public String status;
+        
+        public Job(int jobNumber, long pid, String command, String status) {
+            this.jobNumber = jobNumber;
+            this.pid = pid;
+            this.command = command;
+            this.status = status;
+        }
     }
 
     public static CommandParseResult parseCommandLine(String input) {
@@ -235,7 +249,7 @@ public class Main {
         }
     }
 
-    public static void executeCommand(CommandParseResult parseResult, List<String> commandList) {
+    public static void executeCommand(CommandParseResult parseResult, List<String> commandList, String input) {
         String command = parseResult.args.get(0);
         List<String> args = parseResult.args.subList(1, parseResult.args.size());
 
@@ -326,9 +340,21 @@ public class Main {
                     }
                     break;
                 case "jobs":
+                    for (int j = 0; j < backgroundJobs.size(); j++) {
+                        Job job = backgroundJobs.get(j);
+                        String marker = " ";
+                        if (j == backgroundJobs.size() - 1) {
+                            marker = "+";
+                        } else if (j == backgroundJobs.size() - 2) {
+                            marker = "-";
+                        }
+                        String statusField = String.format("%-24s", job.status);
+                        System.out.println("[" + job.jobNumber + "]" + marker + "  " + statusField + job.command);
+                    }
+                    System.out.flush();
                     break;
                 default:
-                    executeExternal(parseResult);
+                    executeExternal(parseResult, input);
                     break;
             }
         } catch (Exception e) {
@@ -348,7 +374,7 @@ public class Main {
         }
     }
 
-    public static void executeExternal(CommandParseResult parseResult) {
+    public static void executeExternal(CommandParseResult parseResult, String input) {
         List<String> args = parseResult.args;
         String command = args.get(0);
 
@@ -388,6 +414,7 @@ public class Main {
                 jobCounter++;
                 System.out.println("[" + jobCounter + "] " + process.pid());
                 System.out.flush();
+                backgroundJobs.add(new Job(jobCounter, process.pid(), input, "Running"));
             } else {
                 process.waitFor();
             }
@@ -485,6 +512,7 @@ public class Main {
     }
 
     private static int jobCounter = 0;
+    private static final List<Job> backgroundJobs = new java.util.ArrayList<>();
     private static boolean isRawMode = false;
     private static final BufferedReader fallbackReader = new java.io.BufferedReader(new java.io.InputStreamReader(System.in));
 

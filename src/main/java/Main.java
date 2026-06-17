@@ -37,7 +37,7 @@ public class Main {
             // Check for type of command
             switch (command) {
                 case "echo":
-                    System.out.println(parseQuotedString(arguments));
+                    System.out.println(handleEcho(arguments));
                     break;
                 case "type":
                     type(commandList, arguments);
@@ -106,6 +106,22 @@ public class Main {
 
         // Return as-is if not quoted
         return input;
+    }
+
+    public static String handleEcho(String arguments) {
+        if (arguments == null || arguments.isEmpty()) {
+            return "";
+        }
+
+        // Check if entire argument is quoted
+        if ((arguments.startsWith("'") && arguments.endsWith("'")) ||
+                (arguments.startsWith("\"") && arguments.endsWith("\"")) &&
+                        arguments.length() >= 2) {
+            return parseQuotedString(arguments);
+        }
+
+        // Otherwise collapse multiple whitespace into single spaces
+        return arguments.replaceAll("\\s+", " ");
     }
 
     public static void type(List<String> commandList, String arguments) {
